@@ -51,7 +51,7 @@ if not os.path.exists('obesity_model.pkl'):
 model = joblib.load('obesity_model.pkl')
 
 def calculate_bmi(height, weight):
-    return weight / ((height/100) ** 2)
+    return weight / ((height/100) ** 2) if height > 0 else 0
 
 # Define BMI ranges for each class.
 bmi_ranges = {
@@ -121,36 +121,39 @@ def main():
     with st.form("user_inputs"):
         col1, col2 = st.columns(2)
         with col1:
-            # Dropdowns now include a default "Select" option
             gender = st.selectbox("Gender", ['Select', 'Male', 'Female'])
-            age = st.number_input("Age", min_value=0, max_value=100, value=0)
-            height = st.number_input("Height (cm)", min_value=0, max_value=250, value=0)
-            weight = st.number_input("Weight (kg)", min_value=0, max_value=300, value=0)
+            age = st.number_input("Age", min_value=0, max_value=100, value=0, step=1)
+            height = st.number_input("Height (cm)", min_value=0, max_value=250, value=0, step=1)
+            weight = st.number_input("Weight (kg)", min_value=0, max_value=300, value=0, step=1)
             family_history = st.selectbox("Family History of Overweight", ['Select', 'yes', 'no'])
             favc = st.selectbox("Frequent High Caloric Food Consumption", ['Select', 'yes', 'no'])
             
         with col2:
-            fcvc = st.slider("Vegetable Consumption Frequency (1-3)", 0, 3, 0)
-            ncp = st.slider("Number of Main Meals (1-4)", 0, 4, 0)
+            # Changed Vegetable Consumption Frequency to text options.
+            fcvc = st.selectbox("Vegetable Consumption Frequency", ['Select', 'no', 'Sometimes', 'Frequently'])
+            ncp = st.selectbox("Number of Main Meals (1-4)", ['Select', 1, 2, 3, 4])
             caec = st.selectbox("Snacks Between Meals", ['Select', 'no', 'Sometimes', 'Frequently', 'Always'])
             smoke = st.selectbox("Do you smoke?", ['Select', 'yes', 'no'])
-            ch2o = st.slider("Daily Water Intake (liters)", 0.0, 3.0, 0.0)
+            # Daily Water Intake as a manual number input field (in liters)
+            ch2o = st.number_input("Daily Water Intake (liters)", min_value=0.0, max_value=3.0, value=0.0, step=0.1)
             scc = st.selectbox("Monitor Calories Consumption", ['Select', 'yes', 'no'])
             
-        faf = st.slider("Physical Activity Frequency (0-3)", 0, 3, 0)
-        tue = st.slider("Time Using Technology Devices (0-3)", 0, 3, 0)
+        # Changed Physical Activity Frequency to text options.
+        faf = st.selectbox("Physical Activity Frequency", ['Select', 'no', 'Sometimes', 'Frequently'])
+        # Changed Time Using Technology Devices to text options.
+        tue = st.selectbox("Time Using Technology Devices", ['Select', 'no', 'Sometimes', 'Frequently'])
         calc = st.selectbox("Alcohol Consumption", ['Select', 'no', 'Sometimes', 'Frequently'])
         mtrans = st.selectbox("Transportation Used", ['Select', 'Public_Transportation', 'Walking', 'Automobile', 'Motorbike', 'Bike'])
         
         submitted = st.form_submit_button("Predict")
     
     if submitted:
-        # Validate that no field is left at its default value
+        # Validate inputs
         invalid_fields = []
         if gender == 'Select':
             invalid_fields.append("Gender")
-        if age == 0:
-            invalid_fields.append("Age")
+        if age < 14:
+            invalid_fields.append("Age (must be at least 14)")
         if height == 0:
             invalid_fields.append("Height")
         if weight == 0:
@@ -159,21 +162,21 @@ def main():
             invalid_fields.append("Family History")
         if favc == 'Select':
             invalid_fields.append("High Caloric Food Consumption")
-        if fcvc == 0:
+        if fcvc == 'Select':
             invalid_fields.append("Vegetable Consumption Frequency")
-        if ncp == 0:
+        if ncp == 'Select':
             invalid_fields.append("Number of Main Meals")
         if caec == 'Select':
             invalid_fields.append("Snacks Between Meals")
         if smoke == 'Select':
             invalid_fields.append("Smoking")
-        if ch2o == 0.0:
+        if ch2o <= 0.0:
             invalid_fields.append("Daily Water Intake")
         if scc == 'Select':
             invalid_fields.append("Monitor Calories Consumption")
-        if faf == 0:
+        if faf == 'Select':
             invalid_fields.append("Physical Activity Frequency")
-        if tue == 0:
+        if tue == 'Select':
             invalid_fields.append("Time Using Technology Devices")
         if calc == 'Select':
             invalid_fields.append("Alcohol Consumption")
@@ -183,25 +186,39 @@ def main():
         if invalid_fields:
             st.error(f"Please provide valid inputs for the following fields: {', '.join(invalid_fields)}")
         else:
+            # Conversion mapping for text options to numeric values.
+            conv_map = {'no': 1, 'Sometimes': 2, 'Frequently': 3}
             input_data = {
-                'Gender': gender, 'Age': age, 'Height': height, 'Weight': weight,
-                'family_history_with_overweight': family_history, 'FAVC': favc, 'FCVC': fcvc, 'NCP': ncp,
-                'CAEC': caec, 'SMOKE': smoke, 'CH2O': ch2o, 'SCC': scc, 'FAF': faf,
-                'TUE': tue, 'CALC': calc, 'MTRANS': mtrans
+                'Gender': gender,
+                'Age': age,
+                'Height': height,
+                'Weight': weight,
+                'family_history_with_overweight': family_history,
+                'FAVC': favc,
+                # Convert vegetable consumption frequency from text to number.
+                'FCVC': conv_map[fcvc],
+                'NCP': ncp,
+                'CAEC': caec,
+                'SMOKE': smoke,
+                'CH2O': ch2o,
+                'SCC': scc,
+                # Convert physical activity frequency from text to number.
+                'FAF': conv_map[faf],
+                # Convert technology usage frequency from text to number.
+                'TUE': conv_map[tue],
+                'CALC': calc,
+                'MTRANS': mtrans
             }
             df_input = pd.DataFrame([input_data])
             
             try:
-                # Get model probabilities and prediction
                 probabilities = model.predict_proba(df_input)[0]
                 classes = model.classes_
                 model_prediction = classes[np.argmax(probabilities)]
                 
-                # Desired fixed order (by severity)
                 desired_order = ["Insufficient_Weight", "Normal_Weight", "Overweight_Level_I", 
                                  "Overweight_Level_II", "Obesity_Type_I", "Obesity_Type_II", "Obesity_Type_III"]
                 
-                # Reorder model probabilities in the fixed order (only include classes present)
                 ordered_classes = []
                 ordered_probs = []
                 for cls in desired_order:
@@ -210,14 +227,10 @@ def main():
                         ordered_classes.append(cls)
                         ordered_probs.append(probabilities[idx])
                 
-                # Calculate BMI and get BMI-based prediction
                 bmi = calculate_bmi(input_data['Height'], input_data['Weight'])
                 bmi_distribution = bmi_based_distribution(bmi, classes)
                 bmi_prediction = classes[np.argmax(bmi_distribution)]
                 
-                # Determine final prediction:
-                # If the model predicts "Insufficient_Weight", use that.
-                # Otherwise, if the model's prediction differs from the BMI-based prediction, favor the BMI prediction.
                 if model_prediction == 'Insufficient_Weight':
                     final_prediction = 'Insufficient_Weight'
                 elif model_prediction != bmi_prediction:
@@ -225,14 +238,12 @@ def main():
                 else:
                     final_prediction = model_prediction
                 
-                # Adjust displayed percentages so the peak is at the final predicted category.
                 final_index = ordered_classes.index(final_prediction)
                 weights = [1.0 / (1.0 + abs(i - final_index)) for i in range(len(ordered_classes))]
                 weights = np.array(weights)
-                adjusted_probs = weights / weights.sum()  # normalize
+                adjusted_probs = weights / weights.sum()
                 
-                # Mapping for column headings (custom labels)
-                mapping = {
+                mapping_labels = {
                     "Insufficient_Weight": "Under Weight",
                     "Normal_Weight": "Normal Weight",
                     "Overweight_Level_I": "Over Weight1",
@@ -242,14 +253,13 @@ def main():
                     "Obesity_Type_III": "Obesity3"
                 }
                 
-                # Build HTML table for displaying adjusted probabilities
                 cell_style = ("width:14.28%; height:50px; padding:4px; border:1px solid lightwhite; "
                               "word-wrap: break-word; white-space: normal;")
                 html_table = ("<table style='width:100%; table-layout: fixed; text-align:center; "
                               "border-collapse: separate; border-spacing: 0px;'>")
                 html_table += "<tr><td style='" + cell_style + "'>Obesity Class</td>"
                 for cls in ordered_classes:
-                    label = mapping.get(cls, cls).replace(" ", "<br>")
+                    label = mapping_labels.get(cls, cls).replace(" ", "<br>")
                     html_table += f"<td style='{cell_style}'>{label}</td>"
                 html_table += "</tr>"
                 html_table += "<tr><td style='" + cell_style + "'>Percentage</td>"
@@ -260,9 +270,7 @@ def main():
                 st.markdown(html_table, unsafe_allow_html=True)
                 st.success(f"**Predicted Category**: {final_prediction.replace('_', ' ').title()}")
                 
-                # Provide suggestion for weight change based on prediction
                 if final_prediction == "Insufficient_Weight":
-                    # Calculate desired weight using the lower bound of normal BMI (18.5)
                     desired_weight = 18.5 * ((input_data['Height'] / 100) ** 2)
                     weight_to_increase = desired_weight - input_data['Weight']
                     if weight_to_increase > 0:
