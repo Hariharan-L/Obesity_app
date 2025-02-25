@@ -90,7 +90,7 @@ def get_suggestions(inputs, prediction):
         suggestions.append(f"💧 Drink at least {3 - inputs['CH2O']} more liters of water daily")
     
     if inputs['CAEC'] in ['Sometimes', 'Frequently']:
-        suggestions.append("Don't intake any snacks")
+        suggestions.append("🍫 less intake any snacks")
         
     if prediction != 'Insufficient_Weight':
         if inputs['FAVC'] == 'yes':
